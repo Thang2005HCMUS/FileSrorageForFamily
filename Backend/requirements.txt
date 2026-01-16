@@ -1,0 +1,18 @@
+# --- Core Framework ---
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.9    # Bắt buộc để upload file
+
+# --- Database (Async) ---
+sqlalchemy>=2.0.25         # ORM mạnh mẽ nhất
+asyncpg>=0.29.0            # Driver PostgreSQL nhanh nhất cho Python (Async)
+alembic>=1.13.1            # Quản lý migration DB (tạo bảng tự động)
+
+# --- Utilities ---
+pydantic-settings>=2.1.0   # Quản lý biến môi trường (.env)
+uuid6>=2024.1.12           # Để tạo UUID v7 (Sort được theo thời gian )
+aiofiles>=23.2.1           # Hỗ trợ đọc/ghi file bất đồng bộ 
+
+# --- Security ---
+passlib[bcrypt]>=1.7.4     # Mã hoá password
+python-jose[cryptography]>=3.3.0 # Tạo JWT Token đăng nhập

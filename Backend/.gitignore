@@ -1,0 +1,42 @@
+# --- Python Basics ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# --- Virtual Environment ---
+
+venv/
+.venv/
+env/
+
+# --- Environment Variables (BẢO MẬT) ---
+
+.env
+.env.*
+
+# --- IDE & OS ---
+# File cấu hình của VS Code, PyCharm, MacOS, Linux
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+
+# --- Logs & Databases ---
+*.log
+*.sqlite3
+
+# --- Project Storage (QUAN TRỌNG) ---
+# Bỏ qua tất cả file trong folder storage (để không up video/ảnh lên git)
+storage/*
+
+# NHƯNG giữ lại file .gitkeep để Git vẫn tạo cấu trúc thư mục rỗng
+!storage/.gitkeep
+!storage/temp/.gitkeep
+!storage/completed/.gitkeep
+
+# --- Testing & Coverage ---
+.pytest_cache/
+.coverage
+htmlcov/
