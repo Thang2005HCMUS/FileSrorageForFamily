@@ -16,3 +16,5 @@ aiofiles>=23.2.1           # Hỗ trợ đọc/ghi file bất đồng bộ
 # --- Security ---
 passlib[bcrypt]>=1.7.4     # Mã hoá password
 python-jose[cryptography]>=3.3.0 # Tạo JWT Token đăng nhập
+pydantic[email]
+#pip install "bcrypt==4.0.1"
