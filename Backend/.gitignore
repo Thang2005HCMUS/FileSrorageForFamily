@@ -9,7 +9,7 @@ __pycache__/
 venv/
 .venv/
 env/
-
+run_pgsql.txt
 # --- Environment Variables (BẢO MẬT) ---
 
 .env
@@ -40,3 +40,4 @@ storage/*
 .pytest_cache/
 .coverage
 htmlcov/
+config_server.txt

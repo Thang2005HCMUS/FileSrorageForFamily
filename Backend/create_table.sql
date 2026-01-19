@@ -1,57 +1,42 @@
+-- Xóa bảng cũ
+DROP TABLE IF EXISTS files CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+
 -- 1. Bảng USERS
 CREATE TABLE users (
     id UUID PRIMARY KEY,
     email VARCHAR(255) NOT NULL UNIQUE,
     username VARCHAR(100) NOT NULL,
     hashed_password VARCHAR(255) NOT NULL,
-    
-    -- Đây là thiết kế của bạn: Lưu ID thư mục gốc vào đây.
-    -- Cho phép NULL ban đầu để tạo User trước.
-    -- KHÔNG tạo Foreign Key (REFERENCES) để tránh lỗi vòng lặp và tăng tốc insert.
-    root_folder_id UUID, 
-    
+    root_folder_id UUID, -- Trỏ đến bảng files
     is_active BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
--- 2. Bảng FOLDERS
-CREATE TABLE folders (
-    id UUID PRIMARY KEY,
+-- 2. Bảng FILES (Gộp chung File và Folder)
+CREATE TABLE files (
+    id UUID PRIMARY KEY, -- Đây cũng chính là tên file vật lý trên đĩa
+    
     owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     
-    -- Thư mục cha. Nếu NULL -> Đây là Root (về mặt logic)
-    parent_id UUID REFERENCES folders(id) ON DELETE CASCADE,
+    -- parent_id: NULL = Root. Thay đổi cái này là di chuyển cả nhánh cây -> Cực nhanh
+    parent_id UUID REFERENCES files(id) ON DELETE CASCADE,
     
-    name VARCHAR(255) NOT NULL,
+    name VARCHAR(255) NOT NULL, -- Tên hiển thị (VD: "bao_cao.pdf")
+    
+    type VARCHAR(20) NOT NULL, -- 'file' hoặc 'folder'
+    
+    -- Đã BỎ physical_path
+    
+    mime_type VARCHAR(100), -- Để trình duyệt biết là ảnh hay video
+    size_bytes BIGINT DEFAULT 0,
+    
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    
-    -- Ràng buộc: Trong cùng 1 thư mục cha, không được có 2 thư mục con trùng tên
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+
     UNIQUE(owner_id, parent_id, name)
 );
 
--- 3. Bảng FILES
-CREATE TABLE files (
-    id UUID PRIMARY KEY,
-    owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    
-    -- File bắt buộc phải thuộc về 1 folder nào đó (kể cả Root)
-    folder_id UUID NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
-    
-    filename VARCHAR(255) NOT NULL,
-    mime_type VARCHAR(100), -- type
-    size_bytes BIGINT NOT NULL, -- size
-    
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP -- Last_modifider
-);
-
--- 4. Index tối ưu
--- Index cho User Login
-CREATE INDEX idx_users_email ON users(email);
-
--- Index cho việc hiển thị nội dung thư mục (Quan trọng nhất)
--- Giúp lệnh: SELECT * FROM folders WHERE parent_id = ... chạy cực nhanh
-CREATE INDEX idx_folders_parent ON folders(parent_id);
-
--- Index để check nhanh file trong folder
-CREATE INDEX idx_files_folder ON files(folder_id);
+-- 3. Index
+CREATE INDEX idx_files_parent ON files(parent_id);
+CREATE INDEX idx_files_type ON files(type);
