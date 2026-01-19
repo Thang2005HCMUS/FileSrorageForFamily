@@ -29,9 +29,17 @@ run_pgsql.txt
 
 # --- Project Storage (QUAN TRỌNG) ---
 # Bỏ qua tất cả file trong folder storage (để không up video/ảnh lên git)
+# Ignore toàn bộ bên trong storage
 storage/*
 
-# NHƯNG giữ lại file .gitkeep để Git vẫn tạo cấu trúc thư mục rỗng
+# Cho phép các folder cần giữ
+!storage/
+!storage/temp/
+!storage/completed/
+storage/temp/**
+storage/completed/**
+
+# Cho phép file giữ folder
 !storage/.gitkeep
 !storage/temp/.gitkeep
 !storage/completed/.gitkeep
