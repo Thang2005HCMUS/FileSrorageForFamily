@@ -307,80 +307,88 @@ async def download_folder(
         media_type='application/zip'
     )
 
+# app/routers/files.py
+
 @router.post("/upload_chunk")
 async def upload_chunk(
-    upload_id: str = Form(...),      # ID phiên upload (do client tự tạo)
-    chunk_index: int = Form(...),    # Số thứ tự: 0, 1, 2...
-    total_chunks: int = Form(...),   # Tổng số mảnh
-    parent_id: str = Form(...),      # Folder cha
-    file: UploadFile = File(...),    # Dữ liệu mảnh file
+    upload_id: str = Form(...),
+    chunk_index: int = Form(...),
+    total_chunks: int = Form(...),
+    parent_id: str = Form(...),
+    file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # 1. Tạo thư mục tạm để chứa các mảnh ghép
-    temp_dir = os.path.join("storage", "temp")
+    # 1. Tạo folder tạm riêng cho upload_id này
+    temp_dir = os.path.join("storage", "temp", upload_id)
     os.makedirs(temp_dir, exist_ok=True)
     
-    # File tạm sẽ có tên là upload_id
-    temp_file_path = os.path.join(temp_dir, upload_id)
-
+    # 2. Lưu mảnh ghép thành file riêng: VD "3.part"
+    part_file_path = os.path.join(temp_dir, f"{chunk_index}.part")
+    
     try:
-        # 2. Ghi nối (Append) dữ liệu vào file tạm
-        # Mode 'ab' = Append Binary (Ghi tiếp vào đuôi)
-        with open(temp_file_path, "ab") as buffer:
+        with open(part_file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
             
-        # 3. Nếu đây là mảnh cuối cùng (Mảnh ghép hoàn tất)
-        if chunk_index == total_chunks - 1:
-            
-            # --- BẮT ĐẦU XỬ LÝ LƯU FILE CHÍNH THỨC ---
-            new_file_id = uuid6.uuid7()
-            
-            # Tạo đường dẫn user
-            user_storage_path = os.path.join(STORAGE_BASE, str(current_user.id))
-            os.makedirs(user_storage_path, exist_ok=True)
-            final_file_path = os.path.join(user_storage_path, str(new_file_id))
-            
-            # Di chuyển file tạm -> file chính thức
-            # Dùng shutil.move nhanh hơn copy
-            shutil.move(temp_file_path, final_file_path)
-            
-            # Tính toán thông tin file
-            file_size = os.path.getsize(final_file_path)
-            
-            # Đoán mime type
-            content_type = file.content_type
-            if not content_type or content_type == "application/octet-stream":
-                guessed_type, _ = mimetypes.guess_type(file.filename)
-                if guessed_type:
-                    content_type = guessed_type
-
-            # Xử lý parent_id
-            pid = parent_id if parent_id and parent_id != "root" else current_user.root_folder_id
-
-            # Lưu DB
-            new_file_record = FileItem(
-                id=new_file_id,
-                owner_id=current_user.id,
-                parent_id=pid,
-                name=file.filename, # Client gửi tên file gốc trong chunk cuối
-                type="file",
-                mime_type=content_type,
-                size_bytes=file_size
-            )
-            
-            db.add(new_file_record)
-            await db.commit()
-            await db.refresh(new_file_record)
-            
-            return {
-                "status": "completed",
-                "file_id": new_file_record.id
-            }
+        # 3. Kiểm tra xem đã đủ tất cả các mảnh chưa?
+        # Đếm số file .part trong folder
+        uploaded_parts = len([name for name in os.listdir(temp_dir) if name.endswith('.part')])
+        
+        if uploaded_parts == total_chunks:
+            # --- ĐÃ ĐỦ MẢNH -> TIẾN HÀNH GỘP FILE ---
+            return await merge_files(upload_id, total_chunks, parent_id, file.filename, file.content_type, db, current_user)
 
         return {"status": "chunk_received", "index": chunk_index}
 
     except Exception as e:
-        # Nếu lỗi thì đừng xóa vội, để debug hoặc retry
-        print(f"Upload Error: {e}")
+        print(f"Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# Hàm phụ trợ để gộp file (Tách ra cho gọn)
+async def merge_files(upload_id, total_chunks, parent_id, filename, content_type, db, user):
+    temp_dir = os.path.join("storage", "temp", upload_id)
+    new_file_id = uuid6.uuid7()
+    
+    user_path = os.path.join(STORAGE_BASE, str(user.id))
+    os.makedirs(user_path, exist_ok=True)
+    final_path = os.path.join(user_path, str(new_file_id))
+    
+    try:
+        # Mở file đích để ghi
+        with open(final_path, "wb") as outfile:
+            # Lặp từ 0 -> total_chunks để gộp đúng thứ tự
+            for i in range(total_chunks):
+                part_path = os.path.join(temp_dir, f"{i}.part")
+                with open(part_path, "rb") as infile:
+                    shutil.copyfileobj(infile, outfile)
+        
+        # Xóa folder tạm
+        shutil.rmtree(temp_dir)
+        
+        # Lưu DB (Logic cũ)
+        file_size = os.path.getsize(final_path)
+        
+        # Đoán mime type nếu cần
+        if not content_type or content_type == "application/octet-stream":
+             guessed_type, _ = mimetypes.guess_type(filename)
+             if guessed_type: content_type = guessed_type
+
+        pid = parent_id if parent_id and parent_id != "root" else user.root_folder_id
+
+        new_file = FileItem(
+            id=new_file_id,
+            owner_id=user.id,
+            parent_id=pid,
+            name=filename,
+            type="file",
+            mime_type=content_type,
+            size_bytes=file_size
+        )
+        db.add(new_file)
+        await db.commit()
+        await db.refresh(new_file)
+        
+        return {"status": "completed", "file_id": new_file.id}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Merge Error: {e}")
